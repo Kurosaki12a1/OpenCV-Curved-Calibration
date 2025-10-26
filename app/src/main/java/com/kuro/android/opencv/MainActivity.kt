@@ -1,12 +1,18 @@
 package com.kuro.android.opencv
 
+import android.content.Context
+import android.graphics.BitmapFactory
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.graphics.createBitmap
 import androidx.lifecycle.lifecycleScope
+import com.kuro.android.opencv.ChessBoardManager.warpCurvedToFlatInPlace
 import com.kuro.android.opencv.databinding.ActivityMainBinding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.opencv.android.Utils
+import org.opencv.core.Mat
 
 class MainActivity : AppCompatActivity() {
 
@@ -56,9 +62,47 @@ class MainActivity : AppCompatActivity() {
                 cols = cols,
                 rows = rows
             )
+            val mat = loadMatFromAssets(this@MainActivity, "chessboard_3.png")
+            val radius = ChessBoardManager.detectCurvatureFromMat(
+                matPtr = mat.nativeObjAddr,
+                cols = 8,
+                rows = 10
+            )
+
+            val mat1 = loadMatFromAssets(this@MainActivity, "chessboard_3.png")
+
+
+         //   warpCurvedToFlatInPlace(mat.nativeObjAddr, radius)
+        //    warpCurvedToFlatInPlace(mat.nativeObjAddr, 1000f)
+            val bitmap = createBitmap(mat.cols(), mat.rows())
+            Utils.matToBitmap(mat, bitmap)
+
+            val bitmap1 = createBitmap(mat1.cols(), mat1.rows())
+            Utils.matToBitmap(mat1, bitmap1)
+
             withContext(Dispatchers.Main) {
-                binding.zoomLayout.setBitmaps(listOf(group1, group2))
+                binding.zoomLayout.setBitmaps(listOf(bitmap1, bitmap))
             }
+        }
+    }
+
+    private
+            /**
+             * Loads an image from assets folder and converts it to an OpenCV Mat.
+             *
+             * @param context  The Android Context
+             * @param fileName The file name inside assets folder (e.g. "chessboard.png")
+             * @return         Mat representation of the image (BGR color order)
+             */
+    fun loadMatFromAssets(context: Context, fileName: String): Mat {
+        val assetManager = context.assets
+        assetManager.open(fileName).use { inputStream ->
+            val bitmap = BitmapFactory.decodeStream(inputStream)
+            val mat = Mat()
+            Utils.bitmapToMat(bitmap, mat)
+            // Convert from RGBA (Bitmap) → BGR (OpenCV default)
+            org.opencv.imgproc.Imgproc.cvtColor(mat, mat, org.opencv.imgproc.Imgproc.COLOR_RGBA2BGR)
+            return mat
         }
     }
 }
