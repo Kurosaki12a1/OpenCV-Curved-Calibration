@@ -603,3 +603,56 @@ Java_com_kuro_android_opencv_ChessBoardManager_warpCurvedToFlatInPlace(
 
     LOGI("Warp completed successfully.");
 }
+
+/**
+ * @brief Checks whether the detected chessboard corner points form a perfectly flat, front-facing grid.
+ *
+ * This function analyzes the alignment of corner points along rows and columns to determine
+ * if the chessboard is perfectly flat and the camera is viewing it nearly perpendicular (front-facing).
+ *
+ * It assumes that `pts` contains exactly rows * cols points ordered row by row (as returned by
+ * cv::findChessboardCorners()). The function verifies that:
+ *   1. Points in the same row have nearly equal Y-coordinates (horizontal straight lines).
+ *   2. Points in the same column have nearly equal X-coordinates (vertical straight lines).
+ *   3. Deviation in X and Y across rows/columns is very small — within a given threshold.
+ *
+ * @param pts  The list of detected 2D corner points.
+ * @param rows Number of inner corners per column in the pattern.
+ * @param cols Number of inner corners per row in the pattern.
+ * @return true  If the chessboard is perfectly flat (camera facing front).
+ * @return false If the grid has noticeable perspective or irregular spacing.
+ */
+bool isValidCornerPattern(const std::vector<cv::Point2f>& pts, int rows, int cols) {
+    // --- Check if number of detected corners matches expected grid size ---
+    if ((int)pts.size() != rows * cols) return false;
+
+    double varY = 0, varX = 0;
+
+    // --- Check horizontal alignment (same Y for all points in each row) ---
+    for (int r = 0; r < rows; ++r) {
+        double y0 = pts[r * cols].y;  // Reference Y of first point in the row
+        for (int c = 1; c < cols; ++c)
+            varY += fabs(pts[r * cols + c].y - y0);
+    }
+
+    // --- Check vertical alignment (same X for all points in each column) ---
+    for (int c = 0; c < cols; ++c) {
+        double x0 = pts[c].x;  // reference X of first point in this column
+        for (int r = 1; r < rows; ++r)
+            varX += fabs(pts[r * cols + c].x - x0);  // accumulate X deviation
+    }
+
+    // --- Normalize deviation by total number of points ---
+    varY /= (rows * cols);
+    varX /= (rows * cols);
+
+    // small deviation means straight rows & columns → flat
+    bool flat = (varY < 0.5 && varX < 0.5);
+    return flat;
+}
+
+enum ChessboardStatus {
+    BOARD_FOUND = 0,        // findChessboardCorners() succeeded
+    BOARD_TOO_FLAT = 1,     // corners are parallel / flat (front-facing)
+    BOARD_INVALID = 2       // not found or invalid (missing points / noisy)
+};
